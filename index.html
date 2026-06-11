@@ -746,26 +746,35 @@
   let firstLoad = true;
 
   async function fetchCSV() {
-    const stamped = CSV_URL + `&nocache=${Date.now()}`;
+    const base = CSV_URL;
 
-    // 1️⃣ Try direct fetch
+    // Helper: fetch a URL and return text if it looks like CSV data
+    async function tryFetch(url) {
+      const r = await fetch(url, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const t = await r.text();
+      // Must contain commas and not be an HTML error page
+      if (!t.includes(',') || t.trim().startsWith('<!')) throw new Error('Not CSV');
+      return t;
+    }
+
+    // 1️⃣ Direct fetch (works if Google CORS headers cooperate)
+    try { return await tryFetch(base); } catch(e) {}
+
+    // 2️⃣ corsproxy.io — free for github.io origins, updated ?url= format
+    try { return await tryFetch(`https://corsproxy.io/?url=${encodeURIComponent(base)}`); } catch(e) {}
+
+    // 3️⃣ api.codetabs.com
+    try { return await tryFetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(base)}`); } catch(e) {}
+
+    // 4️⃣ allorigins.win /get endpoint (returns JSON with contents field)
     try {
-      const r = await fetch(stamped, { cache: 'no-store' });
-      if (r.ok) {
-        const t = await r.text();
-        if (t.includes(',')) return t;
-      }
+      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(base)}`);
+      const j = await r.json();
+      if (j && j.contents && j.contents.includes(',')) return j.contents;
     } catch(e) {}
 
-    // 2️⃣ Fallback: corsproxy.io
-    try {
-      const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(stamped)}`);
-      if (r.ok) return await r.text();
-    } catch(e) {}
-
-    // 3️⃣ Fallback: allorigins.win
-    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}`);
-    return await r.text();
+    throw new Error('All fetch methods failed');
   }
 
   async function fetchAndRender() {
