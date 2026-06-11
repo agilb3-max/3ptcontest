@@ -745,36 +745,43 @@
   ──────────────────────────────────────────── */
   let firstLoad = true;
 
+  const fetchLog = [];
+
   async function fetchCSV() {
     const base = CSV_URL;
 
-    // Helper: fetch a URL and return text if it looks like CSV data
-    async function tryFetch(url) {
+    async function tryFetch(label, url) {
+      fetchLog.push(`⏳ ${label}...`);
       const r = await fetch(url, { cache: 'no-store' });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const t = await r.text();
-      // Must contain commas and not be an HTML error page
-      if (!t.includes(',') || t.trim().startsWith('<!')) throw new Error('Not CSV');
+      if (!t.includes(',') || t.trim().startsWith('<!')) throw new Error('Not CSV data');
+      fetchLog[fetchLog.length-1] = `✅ ${label}`;
       return t;
     }
 
-    // 1️⃣ Direct fetch (works if Google CORS headers cooperate)
-    try { return await tryFetch(base); } catch(e) {}
+    // 1️⃣ Direct
+    try { return await tryFetch('Direct fetch', base); }
+    catch(e) { fetchLog[fetchLog.length-1] = `❌ Direct: ${e.message}`; }
 
-    // 2️⃣ corsproxy.io — free for github.io origins, updated ?url= format
-    try { return await tryFetch(`https://corsproxy.io/?url=${encodeURIComponent(base)}`); } catch(e) {}
+    // 2️⃣ corsproxy.io
+    try { return await tryFetch('corsproxy.io', `https://corsproxy.io/?url=${encodeURIComponent(base)}`); }
+    catch(e) { fetchLog[fetchLog.length-1] = `❌ corsproxy.io: ${e.message}`; }
 
-    // 3️⃣ api.codetabs.com
-    try { return await tryFetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(base)}`); } catch(e) {}
+    // 3️⃣ codetabs
+    try { return await tryFetch('codetabs.com', `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(base)}`); }
+    catch(e) { fetchLog[fetchLog.length-1] = `❌ codetabs: ${e.message}`; }
 
-    // 4️⃣ allorigins.win /get endpoint (returns JSON with contents field)
+    // 4️⃣ allorigins /get (JSON wrapper)
     try {
+      fetchLog.push('⏳ allorigins.win...');
       const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(base)}`);
       const j = await r.json();
-      if (j && j.contents && j.contents.includes(',')) return j.contents;
-    } catch(e) {}
+      if (j?.contents?.includes(',')) { fetchLog[fetchLog.length-1] = '✅ allorigins.win'; return j.contents; }
+      throw new Error('Empty contents');
+    } catch(e) { fetchLog[fetchLog.length-1] = `❌ allorigins: ${e.message}`; }
 
-    throw new Error('All fetch methods failed');
+    throw new Error('All methods failed');
   }
 
   async function fetchAndRender() {
@@ -837,7 +844,10 @@
         document.getElementById('mainContent').innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">⚠️</div>
-            <p>COULD NOT LOAD DATA — RETRYING…</p>
+            <p style="color:#ffcccc;font-size:0.9rem;margin-bottom:8px;">COULD NOT LOAD SCORES</p>
+            <div style="text-align:left;max-width:480px;margin:8px auto;background:rgba(0,0,0,0.5);padding:12px 16px;border-radius:8px;font-size:0.7rem;font-family:monospace;color:#aac4ff;line-height:1.8">
+              ${fetchLog.map(l => `<div>${l}</div>`).join('')}
+            </div>
           </div>`;
       }
     }
