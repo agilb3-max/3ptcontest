@@ -1,1 +1,365 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Select Events Nationals Leaderboard</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+<style>
+:root{
+    --blue:#2E5799;
+    --red:#F42D3A;
+    --navy:#142847;
+    --white:#ffffff;
+    --light:#f4f6fa;
+    --gold:#FFD700;
+    --silver:#C0C0C0;
+    --bronze:#CD7F32;
+}
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+body{
+    background:linear-gradient(180deg,var(--navy),#0d1830);
+    color:white;
+    padding:20px;
+}
+
+.header{
+    text-align:center;
+    margin-bottom:30px;
+}
+
+.logo{
+    max-width:250px;
+    width:100%;
+    margin-bottom:15px;
+}
+
+.title{
+    font-size:3rem;
+    font-weight:900;
+}
+
+.subtitle{
+    color:#ddd;
+    font-size:1.1rem;
+}
+
+.refresh{
+    margin-top:10px;
+    color:#aaa;
+}
+
+.cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:15px;
+    margin-bottom:30px;
+}
+
+.card{
+    background:white;
+    color:var(--navy);
+    border-radius:16px;
+    padding:20px;
+    text-align:center;
+    box-shadow:0 4px 15px rgba(0,0,0,.3);
+}
+
+.card h3{
+    color:var(--blue);
+    margin-bottom:10px;
+}
+
+.section{
+    margin-bottom:40px;
+}
+
+.section-title{
+    background:var(--red);
+    padding:12px;
+    border-radius:10px;
+    margin-bottom:15px;
+    font-size:1.5rem;
+    text-align:center;
+    font-weight:bold;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    background:white;
+    color:#222;
+    border-radius:12px;
+    overflow:hidden;
+}
+
+th{
+    background:var(--blue);
+    color:white;
+    padding:12px;
+}
+
+td{
+    padding:10px;
+    text-align:center;
+}
+
+tr:nth-child(even){
+    background:#f1f4fa;
+}
+
+.rank1{
+    color:var(--gold);
+    font-weight:bold;
+}
+
+.rank2{
+    color:var(--silver);
+    font-weight:bold;
+}
+
+.rank3{
+    color:var(--bronze);
+    font-weight:bold;
+}
+
+.footer{
+    text-align:center;
+    margin-top:40px;
+    color:#aaa;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+<!-- REPLACE WITH YOUR GITHUB IMAGE URL -->
+
+<img class="logo" src="logo.png">
+
+<div class="title">SELECT EVENTS NATIONALS</div>
+<div class="subtitle">Live Leaderboard</div>
+
+<div class="refresh" id="lastUpdated">
+Loading...
+</div>
+
+</div>
+
+<div class="cards" id="leaderCards"></div>
+
+<div class="section">
+<div class="section-title">⭐ OVERALL TOP 10</div>
+<div id="overallTable"></div>
+</div>
+
+<div class="section">
+<div class="section-title">🏆 CLUB STANDINGS</div>
+<div id="clubTable"></div>
+</div>
+
+<div id="gradeLeaderboards"></div>
+
+<div class="footer">
+Auto Refreshes Every 60 Seconds
+</div>
+
+<script>
+
+const CSV_URL =
+"https://docs.google.com/spreadsheets/d/e/2PACX-1vSwIBxC7IXrlMNgk7ckNT7e4u7fzl_xJOJBwKJzIY4XDO26XSXH7Nn7J2zaXvheK6sTjTyYfXUua6dL/pub?gid=0&single=true&output=csv";
+
+function buildTable(data){
+
+let html=`
+<table>
+<thead>
+<tr>
+<th>Rank</th>
+<th>Name</th>
+<th>Club</th>
+<th>Score</th>
+</tr>
+</thead>
+<tbody>
+`;
+
+data.forEach((row,index)=>{
+
+let rank=index+1;
+let medal=rank;
+
+if(rank===1) medal="🥇";
+if(rank===2) medal="🥈";
+if(rank===3) medal="🥉";
+
+html+=`
+<tr>
+<td>${medal}</td>
+<td>${row.NAME}</td>
+<td>${row.CLUB}</td>
+<td><strong>${row.SCORE}</strong></td>
+</tr>
+`;
+
+});
+
+html+="</tbody></table>";
+
+return html;
+}
+
+function loadLeaderboard(){
+
+Papa.parse(CSV_URL,{
+download:true,
+header:true,
+dynamicTyping:true,
+
+complete:function(results){
+
+let rows=results.data.filter(r=>r.NAME);
+
+rows.forEach(r=>{
+r.SCORE=parseFloat(r.SCORE)||0;
+});
+
+rows.sort((a,b)=>b.SCORE-a.SCORE);
+
+document.getElementById("lastUpdated").innerHTML=
+"Updated: "+new Date().toLocaleTimeString();
+
+/////////////////////////////////////////
+// OVERALL TOP 10
+/////////////////////////////////////////
+
+document.getElementById("overallTable").innerHTML=
+buildTable(rows.slice(0,10));
+
+/////////////////////////////////////////
+// CLUB STANDINGS
+/////////////////////////////////////////
+
+let clubs={};
+
+rows.forEach(r=>{
+if(!clubs[r.CLUB]) clubs[r.CLUB]=0;
+clubs[r.CLUB]+=r.SCORE;
+});
+
+let clubRows=Object.keys(clubs)
+.map(c=>({club:c,score:clubs[c]}))
+.sort((a,b)=>b.score-a.score);
+
+let clubHTML=`
+<table>
+<tr>
+<th>Rank</th>
+<th>Club</th>
+<th>Total Score</th>
+</tr>
+`;
+
+clubRows.forEach((club,i)=>{
+
+clubHTML+=`
+<tr>
+<td>${i+1}</td>
+<td>${club.club}</td>
+<td>${club.score}</td>
+</tr>
+`;
+
+});
+
+clubHTML+="</table>";
+
+document.getElementById("clubTable").innerHTML=clubHTML;
+
+/////////////////////////////////////////
+// GRADE LEADER CARDS
+/////////////////////////////////////////
+
+const grades=["5TH","6TH","7TH","8TH"];
+
+let cards="";
+
+grades.forEach(g=>{
+
+let players=
+rows.filter(r=>String(r.GRADE).toUpperCase()===g)
+.sort((a,b)=>b.SCORE-a.SCORE);
+
+if(players.length){
+
+cards+=`
+<div class="card">
+<h3>👑 ${g}</h3>
+<h2>${players[0].NAME}</h2>
+<p>${players[0].CLUB}</p>
+<h1>${players[0].SCORE}</h1>
+</div>
+`;
+
+}
+
+});
+
+document.getElementById("leaderCards").innerHTML=cards;
+
+/////////////////////////////////////////
+// GRADE LEADERBOARDS
+/////////////////////////////////////////
+
+let gradeHTML="";
+
+grades.forEach(g=>{
+
+let players=
+rows.filter(r=>String(r.GRADE).toUpperCase()===g)
+.sort((a,b)=>b.SCORE-a.SCORE);
+
+if(players.length){
+
+gradeHTML+=`
+<div class="section">
+<div class="section-title">🏀 ${g} GRADE</div>
+${buildTable(players)}
+</div>
+`;
+
+}
+
+});
+
+document.getElementById("gradeLeaderboards").innerHTML=
+gradeHTML;
+
+}
+
+});
+
+}
+
+loadLeaderboard();
+
+setInterval(loadLeaderboard,60000);
+
+</script>
+
+</body>
+</html>
 
