@@ -413,8 +413,26 @@
 <!-- ── HEADER ── -->
 <header>
   <div class="header-inner">
-    <!-- Official Select Events Nationals logo -->
-    <img class="shield-logo" src="logo.png" alt="Select Events Nationals" />
+    <!-- Official Select Events Nationals logo (falls back to SVG if logo.png not found) -->
+    <img class="shield-logo" src="logo.png" alt="Select Events Nationals"
+      onerror="this.style.display='none';document.getElementById('fallbackLogo').style.display='block'" />
+    <svg id="fallbackLogo" class="shield-logo" viewBox="0 0 220 250" xmlns="http://www.w3.org/2000/svg" style="display:none">
+      <path d="M110 10 L210 50 L210 155 Q210 220 110 245 Q10 220 10 155 L10 50 Z" fill="#1B4FBF" stroke="#fff" stroke-width="5"/>
+      <path d="M110 10 L160 38 L160 50 L110 22 L60 50 L60 38 Z" fill="#0D2560"/>
+      <rect x="20" y="148" width="180" height="36" rx="8" fill="#CC1122"/>
+      <circle cx="110" cy="185" r="28" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="1.5"/>
+      <line x1="20" y1="185" x2="200" y2="185" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+      <path d="M110 157 Q140 171 140 185 Q140 199 110 213" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+      <path d="M110 157 Q80 171 80 185 Q80 199 110 213" fill="none" stroke="rgba(255,255,255,0.2)" stroke-width="1.5"/>
+      <text x="32"  y="48" font-size="20" fill="#CC1122">★</text>
+      <text x="60"  y="30" font-size="16" fill="#CC1122">★</text>
+      <text x="152" y="30" font-size="16" fill="#CC1122">★</text>
+      <text x="174" y="48" font-size="20" fill="#CC1122">★</text>
+      <text x="97"  y="26" font-size="14" fill="#fff">★</text>
+      <text x="110" y="90"  font-family="Arial Black,Arial" font-weight="900" font-size="14" fill="#fff" text-anchor="middle" letter-spacing="3">SELECT EVENTS</text>
+      <text x="110" y="140" font-family="Arial Black,Arial" font-weight="900" font-size="28" fill="#fff" text-anchor="middle" letter-spacing="1">NATIONALS</text>
+      <text x="110" y="172" font-family="Arial,sans-serif" font-weight="700" font-size="9" fill="#fff" text-anchor="middle" letter-spacing="1">SPOOKY NOOK CHAMPION MILL</text>
+    </svg>
 
     <div class="header-titles">
       <div class="sub">Official Tournament</div>
@@ -728,9 +746,23 @@
   let firstLoad = true;
 
   async function fetchAndRender() {
+    // Warn if opened as a local file — fetch won't work from file:// protocol
+    if (window.location.protocol === 'file:') {
+      document.getElementById('mainContent').innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">⚠️</div>
+          <p style="font-size:0.95rem;color:#ffcccc;margin-bottom:10px;">PAGE MUST BE HOSTED TO LOAD DATA</p>
+          <p style="max-width:400px;margin:0 auto;line-height:1.6;color:#aac4ff;">
+            You're opening this as a local file. Upload it to GitHub Pages (or any web server)
+            and the scores will load automatically from your Google Sheet.
+          </p>
+        </div>`;
+      document.getElementById('lastUpdated').textContent = 'Not hosted yet';
+      return;
+    }
     try {
       const cacheBust = `&_=${Date.now()}`;
-      const res  = await fetch(CSV_URL + cacheBust);
+      const res  = await fetch(CSV_URL + cacheBust, { cache: 'no-store' });
       const text = await res.text();
       const data = parseData(text);
 
