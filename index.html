@@ -512,6 +512,12 @@
   /* ────────────────────────────────────────────
      CONFIG
   ──────────────────────────────────────────── */
+  // ─────────────────────────────────────────────────────────────────
+  // PASTE YOUR GOOGLE APPS SCRIPT URL BELOW (see setup instructions)
+  // ─────────────────────────────────────────────────────────────────
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUWprUBXIrhLDM6pEXXLJpJSW5Qo4vUJtUrhCTZaoAdtcohukaBHjhv4Iw-n2NnoG0eA/exec';
+  // ─────────────────────────────────────────────────────────────────
+
   const CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSwIBxC7IXrlMNgk7ckNT7e4u7fzl_xJOJBwKJzIY4XDO26XSXH7Nn7J2zaXvheK6sTjTyYfXUua6dL/pub?gid=0&single=true&output=csv';
   const REFRESH_INTERVAL = 60; // seconds
 
@@ -748,40 +754,29 @@
   const fetchLog = [];
 
   async function fetchCSV() {
-    const base = CSV_URL;
-
-    async function tryFetch(label, url) {
-      fetchLog.push(`⏳ ${label}...`);
-      const r = await fetch(url, { cache: 'no-store' });
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const t = await r.text();
-      if (!t.includes(',') || t.trim().startsWith('<!')) throw new Error('Not CSV data');
-      fetchLog[fetchLog.length-1] = `✅ ${label}`;
-      return t;
+    // ── Primary: Google Apps Script (bypasses all CORS issues) ──
+    if (SCRIPT_URL && SCRIPT_URL !== 'YOUR_SCRIPT_URL_HERE') {
+      fetchLog.push('⏳ Apps Script...');
+      try {
+        const r = await fetch(SCRIPT_URL, { cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const t = await r.text();
+        if (t.includes(',')) { fetchLog[fetchLog.length-1] = '✅ Apps Script'; return t; }
+        throw new Error('Unexpected response');
+      } catch(e) { fetchLog[fetchLog.length-1] = `❌ Apps Script: ${e.message}`; }
     }
 
-    // 1️⃣ Direct
-    try { return await tryFetch('Direct fetch', base); }
-    catch(e) { fetchLog[fetchLog.length-1] = `❌ Direct: ${e.message}`; }
-
-    // 2️⃣ corsproxy.io
-    try { return await tryFetch('corsproxy.io', `https://corsproxy.io/?url=${encodeURIComponent(base)}`); }
-    catch(e) { fetchLog[fetchLog.length-1] = `❌ corsproxy.io: ${e.message}`; }
-
-    // 3️⃣ codetabs
-    try { return await tryFetch('codetabs.com', `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(base)}`); }
-    catch(e) { fetchLog[fetchLog.length-1] = `❌ codetabs: ${e.message}`; }
-
-    // 4️⃣ allorigins /get (JSON wrapper)
+    // ── Fallback: direct CSV (may fail on GitHub due to CORS) ──
+    fetchLog.push('⏳ Direct CSV...');
     try {
-      fetchLog.push('⏳ allorigins.win...');
-      const r = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(base)}`);
-      const j = await r.json();
-      if (j?.contents?.includes(',')) { fetchLog[fetchLog.length-1] = '✅ allorigins.win'; return j.contents; }
-      throw new Error('Empty contents');
-    } catch(e) { fetchLog[fetchLog.length-1] = `❌ allorigins: ${e.message}`; }
+      const r = await fetch(CSV_URL, { cache: 'no-store' });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const t = await r.text();
+      if (t.includes(',') && !t.trim().startsWith('<!')) { fetchLog[fetchLog.length-1] = '✅ Direct CSV'; return t; }
+      throw new Error('Not CSV');
+    } catch(e) { fetchLog[fetchLog.length-1] = `❌ Direct: ${e.message}`; }
 
-    throw new Error('All methods failed');
+    throw new Error('Set up Apps Script — see HTML comments for instructions');
   }
 
   async function fetchAndRender() {
@@ -844,7 +839,10 @@
         document.getElementById('mainContent').innerHTML = `
           <div class="empty-state">
             <div class="empty-icon">⚠️</div>
-            <p style="color:#ffcccc;font-size:0.9rem;margin-bottom:8px;">COULD NOT LOAD SCORES</p>
+            <p style="color:#ffcccc;font-size:0.9rem;margin-bottom:8px;">APPS SCRIPT NOT CONFIGURED YET</p>
+            <p style="color:#aac4ff;font-size:0.78rem;max-width:420px;margin:0 auto 10px;line-height:1.7">
+              Open your Google Sheet → <strong>Extensions → Apps Script</strong> → paste the script → Deploy as Web App → copy the URL → paste it into <code>leaderboard.html</code> where it says <code>YOUR_SCRIPT_URL_HERE</code>
+            </p>
             <div style="text-align:left;max-width:480px;margin:8px auto;background:rgba(0,0,0,0.5);padding:12px 16px;border-radius:8px;font-size:0.7rem;font-family:monospace;color:#aac4ff;line-height:1.8">
               ${fetchLog.map(l => `<div>${l}</div>`).join('')}
             </div>
