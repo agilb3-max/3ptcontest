@@ -745,25 +745,44 @@
   ──────────────────────────────────────────── */
   let firstLoad = true;
 
+  async function fetchCSV() {
+    const stamped = CSV_URL + `&nocache=${Date.now()}`;
+
+    // 1️⃣ Try direct fetch
+    try {
+      const r = await fetch(stamped, { cache: 'no-store' });
+      if (r.ok) {
+        const t = await r.text();
+        if (t.includes(',')) return t;
+      }
+    } catch(e) {}
+
+    // 2️⃣ Fallback: corsproxy.io
+    try {
+      const r = await fetch(`https://corsproxy.io/?${encodeURIComponent(stamped)}`);
+      if (r.ok) return await r.text();
+    } catch(e) {}
+
+    // 3️⃣ Fallback: allorigins.win
+    const r = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}`);
+    return await r.text();
+  }
+
   async function fetchAndRender() {
-    // Warn if opened as a local file — fetch won't work from file:// protocol
     if (window.location.protocol === 'file:') {
       document.getElementById('mainContent').innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">⚠️</div>
           <p style="font-size:0.95rem;color:#ffcccc;margin-bottom:10px;">PAGE MUST BE HOSTED TO LOAD DATA</p>
           <p style="max-width:400px;margin:0 auto;line-height:1.6;color:#aac4ff;">
-            You're opening this as a local file. Upload it to GitHub Pages (or any web server)
-            and the scores will load automatically from your Google Sheet.
+            Upload to GitHub Pages and the scores will load automatically.
           </p>
         </div>`;
       document.getElementById('lastUpdated').textContent = 'Not hosted yet';
       return;
     }
     try {
-      const cacheBust = `&_=${Date.now()}`;
-      const res  = await fetch(CSV_URL + cacheBust, { cache: 'no-store' });
-      const text = await res.text();
+      const text = await fetchCSV();
       const data = parseData(text);
 
       const hasData = Object.values(data).some(g => g.players.length > 0);
